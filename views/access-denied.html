@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Access Not Authorized - Stremio</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .container {
+            background: white;
+            border-radius: 16px;
+            padding: 50px;
+            max-width: 500px;
+            text-align: center;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+        }
+
+        .icon {
+            font-size: 5rem;
+            margin-bottom: 20px;
+        }
+
+        h1 {
+            color: #2d3748;
+            font-size: 2rem;
+            margin-bottom: 15px;
+        }
+
+        .email {
+            background: #f7fafc;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 20px 0;
+            color: #4a5568;
+            font-weight: 600;
+        }
+
+        .message {
+            color: #718096;
+            line-height: 1.6;
+            margin: 20px 0;
+        }
+
+        .request-id {
+            background: #fed7d7;
+            color: #c53030;
+            padding: 10px;
+            border-radius: 6px;
+            font-size: 0.9rem;
+            margin: 20px 0;
+            font-family: monospace;
+        }
+
+        .button {
+            display: inline-block;
+            background: #667eea;
+            color: white;
+            padding: 12px 30px;
+            border-radius: 8px;
+            text-decoration: none;
+            font-weight: 600;
+            margin-top: 20px;
+            transition: background 0.3s;
+        }
+
+        .button:hover {
+            background: #5568d3;
+        }
+
+        .footer {
+            margin-top: 30px;
+            color: #a0aec0;
+            font-size: 0.9rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="icon">🚫</div>
+        <h1>Access Not Authorized</h1>
+
+        <div class="email" id="userEmail">
+            Loading...
+        </div>
+
+        <div class="message">
+            <p>This is a private Stremio instance.</p>
+            <p>Your access request has been sent to the administrator.</p>
+            <p>You will be notified when your request is reviewed.</p>
+        </div>
+
+        <div class="request-id" id="requestId">
+            Request ID: Loading...
+        </div>
+
+        <a href="https://web.stremio.com" class="button">
+            Go to Public Stremio
+        </a>
+
+        <div class="footer">
+            If you believe this is an error, please contact the administrator.
+        </div>
+    </div>
+
+    <script>
+        // Get request details from URL parameters
+        const params = new URLSearchParams(window.location.search);
+        const email = params.get('email');
+        const requestId = params.get('requestId');
+
+        if (email) {
+            document.getElementById('userEmail').textContent = email;
+        }
+
+        if (requestId) {
+            document.getElementById('requestId').textContent = 'Request ID: ' + requestId;
+        }
+    </script>
+</body>
+</html>

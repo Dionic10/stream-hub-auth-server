@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Stremio Auth Server - Admin Panel</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🎬 Stremio Auth Server</h1>
+            <p class="subtitle">Admin Panel</p>
+        </header>
+
+        <div class="login-section" id="loginSection">
+            <h2>Admin Login</h2>
+            <input type="password" id="adminPassword" placeholder="Admin Password" />
+            <button onclick="login()">Login</button>
+            <div id="loginError" class="error"></div>
+        </div>
+
+        <div class="dashboard" id="dashboard" style="display: none;">
+            <div class="tabs">
+                <button class="tab active" onclick="showTab('pending')">Pending Requests</button>
+                <button class="tab" onclick="showTab('whitelist')">Whitelist</button>
+                <button class="tab" onclick="showTab('tempAccess')">Temporary Access</button>
+                <button class="tab logout" onclick="logout()">Logout</button>
+            </div>
+
+            <!-- Pending Requests Tab -->
+            <div id="pendingTab" class="tab-content active">
+                <h2>Pending Access Requests</h2>
+                <button onclick="refreshPending()" class="refresh-btn">🔄 Refresh</button>
+                <div id="pendingRequests" class="requests-list"></div>
+            </div>
+
+            <!-- Whitelist Tab -->
+            <div id="whitelistTab" class="tab-content">
+                <h2>Whitelisted Users</h2>
+                <div class="add-user-form">
+                    <input type="email" id="newUserEmail" placeholder="user@example.com" />
+                    <button onclick="addUser()">Add User</button>
+                </div>
+                <button onclick="refreshWhitelist()" class="refresh-btn">🔄 Refresh</button>
+                <div id="whitelistUsers" class="users-list"></div>
+            </div>
+
+            <!-- Temporary Access Tab -->
+            <div id="tempAccessTab" class="tab-content">
+                <h2>Temporary Access Grants</h2>
+                <button onclick="refreshTempAccess()" class="refresh-btn">🔄 Refresh</button>
+                <div id="tempAccessList" class="users-list"></div>
+            </div>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
