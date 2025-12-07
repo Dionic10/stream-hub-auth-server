@@ -61,12 +61,19 @@ function decodeAuthKey(authKey) {
     try {
         // Stremio auth keys are base64 encoded in format: email:password_hash
         const decoded = Buffer.from(authKey, 'base64').toString('utf-8');
+        console.log(`Decoded auth key: ${decoded.substring(0, 50)}...`); // Log first 50 chars
 
         if (decoded.includes(':')) {
             const email = decoded.split(':')[0];
+            console.log(`Extracted email candidate: ${email}`);
             if (email && email.includes('@')) {
+                console.log(`Valid email found: ${email}`);
                 return email;
+            } else {
+                console.log(`Email validation failed - no @ symbol`);
             }
+        } else {
+            console.log(`Decoded string doesn't contain ':' separator`);
         }
 
         return null;
@@ -163,7 +170,7 @@ setInterval(cleanupExpiredAccess, 60 * 60 * 1000);
 
 // API: Validate user access
 app.post('/api/validate-access', async (req, res) => {
-    const { authKey } = req.body;
+    const { authKey, email: clientEmail } = req.body;
 
     if (!authKey) {
         return res.json({
@@ -175,27 +182,34 @@ app.post('/api/validate-access', async (req, res) => {
     // Step 1: Validate token with Stremio API
     const tokenValidation = await validateStremioToken(authKey);
 
-    // Extract email from auth key (works even if API validation fails)
-    let userEmail = null;
+    // Extract email (prefer from client, fallback to token validation or decode)
+    let userEmail = clientEmail || null;
     let userId = null;
 
     if (tokenValidation.valid) {
-        userEmail = tokenValidation.user.email;
+        userEmail = userEmail || tokenValidation.user.email;
         userId = tokenValidation.user.id;
+        console.log(`Stremio API validation successful for: ${userEmail}`);
     } else {
-        // If API validation failed, try to decode the auth key to get email
-        userEmail = decodeAuthKey(authKey);
+        // If API validation failed, use client-provided email or try to decode
+        if (!userEmail) {
+            console.log(`Attempting to decode auth key (length: ${authKey.length})`);
+            userEmail = decodeAuthKey(authKey);
+        }
 
         if (!userEmail) {
+            console.log(`Failed to extract email from auth key`);
             return res.json({
                 authorized: false,
-                reason: 'Invalid Stremio authentication token - unable to extract email'
+                reason: 'Invalid Stremio authentication token - unable to extract email',
+                email: '',
+                requestId: ''
             });
         }
 
         // Generate a temporary user ID from the email
         userId = 'temp_' + Buffer.from(userEmail).toString('base64').substring(0, 16);
-        console.log(`API validation failed but extracted email: ${userEmail}`);
+        console.log(`API validation failed but using email: ${userEmail}`);
     }
 
     // Step 2: Check whitelist
@@ -241,7 +255,7 @@ app.post('/api/validate-access', async (req, res) => {
         requestId,
         userId,
         email: userEmail,
-        avatar: tokenValidation.user.avatar,
+        avatar: tokenValidation.user?.avatar || null,
         authToken: authKey, // Store temporarily for admin approval
         requestedAt: new Date().toISOString(),
         ipAddress: req.ip || req.connection.remoteAddress,
@@ -446,15 +460,30 @@ app.post('/api/admin/remove-user', (req, res) => {
         return res.status(403).json({ error: 'Unauthorized' });
     }
 
+    // Remove from whitelist
     const whitelist = loadJSON(WHITELIST_FILE);
     const updated = whitelist.filter(entry =>
         (typeof entry === 'string' ? entry : entry.email).toLowerCase() !== email.toLowerCase()
     );
-
     saveJSON(WHITELIST_FILE, updated);
-    console.log(`Removed ${email} from whitelist`);
 
-    res.json({ success: true, message: `Removed ${email} from whitelist` });
+    // Also remove all pending/approved requests for this email
+    const pendingRequests = loadJSON(PENDING_FILE);
+    const updatedRequests = pendingRequests.filter(req =>
+        req.email.toLowerCase() !== email.toLowerCase()
+    );
+    saveJSON(PENDING_FILE, updatedRequests);
+
+    // Remove from temporary access
+    const tempAccess = loadJSON(TEMP_ACCESS_FILE);
+    const updatedTempAccess = tempAccess.filter(entry =>
+        entry.email.toLowerCase() !== email.toLowerCase()
+    );
+    saveJSON(TEMP_ACCESS_FILE, updatedTempAccess);
+
+    console.log(`Removed ${email} from whitelist, pending requests, and temp access`);
+
+    res.json({ success: true, message: `Removed ${email} from all access lists` });
 });
 
 // Serve admin panel
