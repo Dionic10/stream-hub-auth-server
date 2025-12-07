@@ -29,7 +29,7 @@ User → Stremio Web (your instance) → Logs in with Stremio
 
 ```bash
 # Clone or navigate to the auth server directory
-cd /home/dan/projects/stremio-auth-server
+cd stremio-auth-server
 
 # Create .env file
 cp .env.example .env
