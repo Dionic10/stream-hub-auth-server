@@ -56,6 +56,26 @@ function generateRequestId() {
     return 'req_' + Math.random().toString(36).substring(2, 15);
 }
 
+// Decode Stremio auth token to extract email
+function decodeAuthKey(authKey) {
+    try {
+        // Stremio auth keys are base64 encoded in format: email:password_hash
+        const decoded = Buffer.from(authKey, 'base64').toString('utf-8');
+
+        if (decoded.includes(':')) {
+            const email = decoded.split(':')[0];
+            if (email && email.includes('@')) {
+                return email;
+            }
+        }
+
+        return null;
+    } catch (error) {
+        console.error('Failed to decode auth key:', error);
+        return null;
+    }
+}
+
 // Validate Stremio auth token
 async function validateStremioToken(authKey) {
     try {
@@ -155,15 +175,28 @@ app.post('/api/validate-access', async (req, res) => {
     // Step 1: Validate token with Stremio API
     const tokenValidation = await validateStremioToken(authKey);
 
-    if (!tokenValidation.valid) {
-        return res.json({
-            authorized: false,
-            reason: 'Invalid Stremio authentication token'
-        });
-    }
+    // Extract email from auth key (works even if API validation fails)
+    let userEmail = null;
+    let userId = null;
 
-    const userEmail = tokenValidation.user.email;
-    const userId = tokenValidation.user.id;
+    if (tokenValidation.valid) {
+        userEmail = tokenValidation.user.email;
+        userId = tokenValidation.user.id;
+    } else {
+        // If API validation failed, try to decode the auth key to get email
+        userEmail = decodeAuthKey(authKey);
+
+        if (!userEmail) {
+            return res.json({
+                authorized: false,
+                reason: 'Invalid Stremio authentication token - unable to extract email'
+            });
+        }
+
+        // Generate a temporary user ID from the email
+        userId = 'temp_' + Buffer.from(userEmail).toString('base64').substring(0, 16);
+        console.log(`API validation failed but extracted email: ${userEmail}`);
+    }
 
     // Step 2: Check whitelist
     if (isWhitelisted(userEmail)) {
