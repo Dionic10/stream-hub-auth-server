@@ -77,6 +77,18 @@ async function validateStremioToken(authKey) {
 
         const data = await response.json();
 
+        // Check if response contains an error
+        if (data.error) {
+            console.log('Stremio API returned error:', data.error.message);
+            return { valid: false };
+        }
+
+        // Check if user data exists
+        if (!data.user || !data.user._id || !data.user.email) {
+            console.log('Invalid user data in Stremio API response');
+            return { valid: false };
+        }
+
         return {
             valid: true,
             user: {
