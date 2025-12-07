@@ -2,6 +2,8 @@
 
 Authentication and authorization server for private Stremio Web instances. Implements whitelist-based access control using Stremio account authentication.
 
+> **⚠️ Compatibility Notice:** This auth server is designed to work exclusively with the [Dionic10/stremio-web](https://github.com/Dionic10/stremio-web) fork, which includes the AuthGuard component and auth integration. It is **not compatible** with the official Stremio Web repository.
+
 ## Features
 
 * **Stremio Account Integration** - Users log in with their existing Stremio credentials
@@ -332,5 +334,6 @@ For issues or questions:
 
 ## Related
 
-* [Stremio Web](https://github.com/Stremio/stremio-web) - Official Stremio Web repository
+* [Stremio Web Fork](https://github.com/Dionic10/stremio-web) - Stremio Web with auth integration (required for this auth server)
+* [Official Stremio Web](https://github.com/Stremio/stremio-web) - Official Stremio Web repository (not compatible with this auth server)
 * [Stremio API](https://github.com/Stremio/stremio-api-client) - Stremio API documentation
