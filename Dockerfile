@@ -16,8 +16,9 @@ COPY views ./views
 # Create data directory
 RUN mkdir -p /app/data
 
-# Create non-root user for security
-RUN addgroup -g 1000 node && adduser -D -u 1000 -G node node
+# Create non-root user for security (suppress errors for Alpine's existing node user)
+RUN addgroup -g 1000 node 2>/dev/null || true && \
+    adduser -D -u 1000 -G node node 2>/dev/null || true
 
 # Set proper permissions
 RUN chown -R node:node /app

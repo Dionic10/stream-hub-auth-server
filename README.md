@@ -290,6 +290,202 @@ docker build \
 * Verify server can write to data/ directory
 * Check browser console for network errors
 
+### Docker & Deployment Issues
+
+#### Docker Build Fails: "addgroup: group 'node' in use"
+
+**Problem:** Alpine Linux already has a built-in `node` user, causing user creation to fail.
+
+**Solution:** The Dockerfile now uses error suppression:
+```dockerfile
+RUN addgroup -g 1000 node 2>/dev/null || true && \
+    adduser -D -u 1000 -G node node 2>/dev/null || true
+```
+
+This safely reuses the existing Alpine node user if present.
+
+#### Docker Volume Mount Permission Denied
+
+**Problem:** Running `docker-compose up -d` results in permission errors:
+```
+stat() failed (13: Permission denied)
+chown: changing ownership of '/app/data': Operation not permitted
+```
+
+**Solution:** The Alpine node user needs proper directory ownership:
+
+1. **Create data directory before mounting:**
+   ```bash
+   mkdir -p ./data
+   chmod 755 ./data
+   ```
+
+2. **Adjust docker-compose.yml volumes:**
+   ```yaml
+   volumes:
+     - ./data:/app/data:rw
+   ```
+
+3. **Fix ownership if already created:**
+   ```bash
+   # If Docker container is already running
+   docker-compose exec auth-server chown -R node:node /app/data
+
+   # Or from host (if accessible)
+   sudo chown 1000:1000 ./data
+   ```
+
+#### Nginx: "Permission denied" serving static files
+
+**Problem:** Nginx can't read files served by the auth server.
+
+**Solution:** Ensure proper Docker user and permissions:
+
+1. **Verify the running container user:**
+   ```bash
+   docker-compose exec auth-server whoami
+   # Should output: node
+   ```
+
+2. **Check data directory permissions:**
+   ```bash
+   docker-compose exec auth-server ls -la /app/
+   # Verify node:node ownership
+   ```
+
+3. **Nginx reverse proxy configuration:**
+   ```nginx
+   location / {
+       proxy_pass http://localhost:3000;
+       proxy_set_header Host $host;
+       proxy_set_header X-Real-IP $remote_addr;
+       proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+       proxy_set_header X-Forwarded-Proto $scheme;
+   }
+   ```
+
+#### Container Won't Start or Crashes Immediately
+
+**Problem:** Container exits with code 1 immediately after starting.
+
+**Solution:** Check logs for the specific error:
+```bash
+# View full container logs
+docker-compose logs -f auth-server
+
+# Common issues:
+# - ADMIN_PASSWORD not set in .env
+# - PORT already in use
+# - /app/data directory not writable
+```
+
+#### Node Process Won't Bind to Port 3000
+
+**Problem:** "EADDRINUSE: address already in use :::3000"
+
+**Solution:**
+```bash
+# Find and kill existing process
+lsof -i :3000
+kill -9 <PID>
+
+# Or use a different port in docker-compose.yml
+ports:
+  - "3001:3000"  # Host port 3001 → Container port 3000
+```
+
+#### Environment Variables Not Loaded
+
+**Problem:** NODE_ENV=production and TZ not working in Docker.
+
+**Solution:** Ensure .env file exists and is properly formatted:
+```bash
+# Copy and edit the example
+cp .env.example .env
+nano .env  # Edit with your values
+
+# Verify variables are loaded
+docker-compose exec auth-server printenv | grep -E "NODE_ENV|TZ|ADMIN_PASSWORD"
+```
+
+**Note:** Variables set in `.env` are read by Docker Compose. If using `docker run` directly, use `-e` flag:
+```bash
+docker run -e ADMIN_PASSWORD=secure-pwd -e NODE_ENV=production -e TZ=Europe/Vienna ...
+```
+
+#### Volume Mount Ownership Issues on Linux
+
+**Problem:** Container runs as `node` user (UID 1000) but host files have different ownership.
+
+**Solutions:**
+
+1. **Option A - Fix host ownership (recommended):**
+   ```bash
+   # Ensure data directory matches container user
+   sudo chown -R 1000:1000 ./data
+   chmod 755 ./data
+   ```
+
+2. **Option B - Use docker-compose user override:**
+   ```yaml
+   services:
+     auth-server:
+       build: .
+       user: "0"  # Run as root (less secure, use Option A instead)
+   ```
+
+3. **Option C - Use bind mount with proper SELinux/AppArmor:**
+   ```yaml
+   volumes:
+     - ./data:/app/data:Z  # :Z flag for SELinux systems
+   ```
+
+### Production Deployment with Nginx
+
+Ensure your Nginx configuration properly proxies to the Docker container:
+
+```nginx
+upstream auth_server {
+    server 127.0.0.1:3000;
+}
+
+server {
+    listen 443 ssl http2;
+    server_name auth.yourdomain.com;
+
+    # SSL configuration
+    ssl_certificate /path/to/cert.pem;
+    ssl_certificate_key /path/to/key.pem;
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_ciphers HIGH:!aNULL:!MD5;
+
+    # Headers
+    add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header X-Frame-Options "SAMEORIGIN" always;
+
+    location / {
+        proxy_pass http://auth_server;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+
+        # Timeouts
+        proxy_connect_timeout 60s;
+        proxy_send_timeout 60s;
+        proxy_read_timeout 60s;
+    }
+}
+
+# HTTP redirect
+server {
+    listen 80;
+    server_name auth.yourdomain.com;
+    return 301 https://$server_name$request_uri;
+}
+```
+
 ## Development
 
 ### File Structure
