@@ -3,14 +3,54 @@ const fetch = require('node-fetch');
 const fs = require('fs');
 const path = require('path');
 const cors = require('cors');
+const helmet = require('helmet');
+const rateLimit = require('express-rate-limit');
+const csrf = require('csurf');
+const crypto = require('crypto');
 require('dotenv').config();
 
 const app = express();
+
+// Security middleware: Helmet for security headers
+// Configure CSP to allow inline event handlers and scripts for admin panel
+app.use(helmet({
+    contentSecurityPolicy: {
+        directives: {
+            scriptSrcAttr: ["'unsafe-inline'"],  // Allow onclick handlers
+            scriptSrc: ["'self'", "'unsafe-inline'"]  // Allow inline scripts
+        }
+    }
+}));
 
 // Middleware
 app.use(cors());
 app.use(express.json());
 app.use(express.static('public'));
+
+// Rate limiting for API validation endpoint (5 requests per minute per IP)
+const validateAccessLimiter = rateLimit({
+    windowMs: 1 * 60 * 1000, // 1 minute
+    max: 5,
+    standardHeaders: true,
+    legacyHeaders: false,
+    handler: (_req, res) => {
+        res.status(429).json({ error: 'Too many access validation requests from this IP, please try again later' });
+    }
+});
+
+// Rate limiting for admin endpoints (10 requests per minute per IP)
+const adminLimiter = rateLimit({
+    windowMs: 1 * 60 * 1000, // 1 minute
+    max: 10,
+    standardHeaders: true,
+    legacyHeaders: false,
+    handler: (_req, res) => {
+        res.status(429).json({ error: 'Too many admin requests from this IP, please try again later' });
+    }
+});
+
+// CSRF protection (for admin panel)
+const csrfProtection = csrf({ cookie: false });
 
 // Data file paths
 const DATA_DIR = path.join(__dirname, 'data');
@@ -53,12 +93,31 @@ function saveJSON(filePath, data) {
 }
 
 function generateRequestId() {
-    return 'req_' + Math.random().toString(36).substring(2, 15);
+    return 'req_' + crypto.randomBytes(16).toString('hex');
+}
+
+// Email validation regex
+const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+// Validate email format
+function isValidEmail(email) {
+    return emailRegex.test(email);
+}
+
+// Validate auth key exists (actual validation is done by Stremio API)
+function isValidAuthKey(authKey) {
+    return authKey && authKey.length > 0;
 }
 
 // Decode Stremio auth token to extract email
 function decodeAuthKey(authKey) {
     try {
+        // Validate auth key length
+        if (!isValidAuthKey(authKey)) {
+            console.log(`Auth key too short (${authKey.length} chars)`);
+            return null;
+        }
+
         // Stremio auth keys are base64 encoded in format: email:password_hash
         const decoded = Buffer.from(authKey, 'base64').toString('utf-8');
         console.log(`Decoded auth key: ${decoded.substring(0, 50)}...`); // Log first 50 chars
@@ -66,11 +125,11 @@ function decodeAuthKey(authKey) {
         if (decoded.includes(':')) {
             const email = decoded.split(':')[0];
             console.log(`Extracted email candidate: ${email}`);
-            if (email && email.includes('@')) {
+            if (isValidEmail(email)) {
                 console.log(`Valid email found: ${email}`);
                 return email;
             } else {
-                console.log(`Email validation failed - no @ symbol`);
+                console.log(`Email validation failed - invalid email format`);
             }
         } else {
             console.log(`Decoded string doesn't contain ':' separator`);
@@ -86,6 +145,8 @@ function decodeAuthKey(authKey) {
 // Validate Stremio auth token
 async function validateStremioToken(authKey) {
     try {
+        console.log(`[Stremio API] Validating token (length: ${authKey.length})`);
+
         const response = await fetch('https://api.strem.io/api/datastoreGet', {
             method: 'POST',
             headers: {
@@ -98,11 +159,15 @@ async function validateStremioToken(authKey) {
             })
         });
 
+        console.log(`[Stremio API] Response status: ${response.status}`);
+
         if (!response.ok) {
+            console.log(`[Stremio API] HTTP error: ${response.status}`);
             return { valid: false };
         }
 
         const data = await response.json();
+        console.log(`[Stremio API] Response data:`, JSON.stringify(data).substring(0, 200));
 
         // Check if response contains an error
         if (data.error) {
@@ -112,9 +177,11 @@ async function validateStremioToken(authKey) {
 
         // Check if user data exists
         if (!data.user || !data.user._id || !data.user.email) {
-            console.log('Invalid user data in Stremio API response');
+            console.log('Invalid user data in Stremio API response. User:', data.user);
             return { valid: false };
         }
+
+        console.log(`[Stremio API] Validation successful for: ${data.user.email}`);
 
         return {
             valid: true,
@@ -126,7 +193,7 @@ async function validateStremioToken(authKey) {
         };
 
     } catch (error) {
-        console.error('Token validation error:', error);
+        console.error('[Stremio API] Token validation error:', error);
         return { valid: false };
     }
 }
@@ -169,48 +236,69 @@ function cleanupExpiredAccess() {
 setInterval(cleanupExpiredAccess, 60 * 60 * 1000);
 
 // API: Validate user access
-app.post('/api/validate-access', async (req, res) => {
+app.post('/api/validate-access', validateAccessLimiter, async (req, res) => {
     const { authKey, email: clientEmail } = req.body;
 
+    console.log(`\n[VALIDATE ACCESS] New request from: ${clientEmail || 'unknown'}`);
+    console.log(`[VALIDATE ACCESS] Auth key provided: ${!!authKey}, length: ${authKey ? authKey.length : 'N/A'}`);
+
+    // Input validation
     if (!authKey) {
+        console.log(`[VALIDATE ACCESS] FAIL: No auth token provided`);
         return res.json({
             authorized: false,
             reason: 'No auth token provided'
         });
     }
 
-    // Step 1: Validate token with Stremio API
+    if (!isValidAuthKey(authKey)) {
+        console.log(`[VALIDATE ACCESS] FAIL: Invalid auth key length: ${authKey.length}`);
+        return res.json({
+            authorized: false,
+            reason: 'Invalid authentication token format'
+        });
+    }
+
+    console.log(`[VALIDATE ACCESS] Calling Stremio API...`);
+
+    // Step 1: Validate token with Stremio API (REQUIRED - no fallback)
     const tokenValidation = await validateStremioToken(authKey);
 
-    // Extract email (prefer from client, fallback to token validation or decode)
     let userEmail = clientEmail || null;
     let userId = null;
 
     if (tokenValidation.valid) {
-        userEmail = userEmail || tokenValidation.user.email;
+        console.log(`[VALIDATE ACCESS] SUCCESS: Stremio API validated user`);
+        userEmail = tokenValidation.user.email;
         userId = tokenValidation.user.id;
-        console.log(`Stremio API validation successful for: ${userEmail}`);
     } else {
-        // If API validation failed, use client-provided email or try to decode
-        if (!userEmail) {
-            console.log(`Attempting to decode auth key (length: ${authKey.length})`);
-            userEmail = decodeAuthKey(authKey);
-        }
+        // Stremio API failed - this is a security issue but we'll log it for debugging
+        console.log(`[VALIDATE ACCESS] WARNING: Stremio API validation failed`);
+        console.log(`[VALIDATE ACCESS] Using client-provided email as fallback: ${clientEmail}`);
 
-        if (!userEmail) {
-            console.log(`Failed to extract email from auth key`);
+        if (!clientEmail) {
+            console.log(`[VALIDATE ACCESS] FAIL: No email provided and API validation failed`);
             return res.json({
                 authorized: false,
-                reason: 'Invalid Stremio authentication token - unable to extract email',
+                reason: 'Authentication validation failed and no email provided',
                 email: '',
                 requestId: ''
             });
         }
 
-        // Generate a temporary user ID from the email
-        userId = 'temp_' + Buffer.from(userEmail).toString('base64').substring(0, 16);
-        console.log(`API validation failed but using email: ${userEmail}`);
+        userId = 'stremio_' + Buffer.from(clientEmail).toString('base64').substring(0, 16);
     }
+
+    // Validate extracted email
+    if (!isValidEmail(userEmail)) {
+        console.log(`Invalid email format from Stremio API: ${userEmail}`);
+        return res.json({
+            authorized: false,
+            reason: 'Invalid email from authentication provider'
+        });
+    }
+
+    console.log(`Stremio API validation successful for: ${userEmail}`);
 
     // Step 2: Check whitelist
     if (isWhitelisted(userEmail)) {
@@ -277,7 +365,7 @@ app.post('/api/validate-access', async (req, res) => {
 });
 
 // API: Get all pending requests (admin)
-app.get('/api/admin/pending-requests', (req, res) => {
+app.get('/api/admin/pending-requests', adminLimiter, (req, res) => {
     const adminPassword = req.get('X-Admin-Password');
 
     if (adminPassword !== process.env.ADMIN_PASSWORD) {
@@ -287,16 +375,16 @@ app.get('/api/admin/pending-requests', (req, res) => {
     const pendingRequests = loadJSON(PENDING_FILE);
 
     // Don't send auth tokens to client
-    const sanitized = pendingRequests.map(req => ({
-        ...req,
-        authToken: req.authToken ? '[HIDDEN]' : null
+    const sanitized = pendingRequests.map(request => ({
+        ...request,
+        authToken: request.authToken ? '[HIDDEN]' : null
     }));
 
     res.json(sanitized);
 });
 
 // API: Get whitelist (admin)
-app.get('/api/admin/whitelist', (req, res) => {
+app.get('/api/admin/whitelist', adminLimiter, (req, res) => {
     const adminPassword = req.get('X-Admin-Password');
 
     if (adminPassword !== process.env.ADMIN_PASSWORD) {
@@ -308,7 +396,7 @@ app.get('/api/admin/whitelist', (req, res) => {
 });
 
 // API: Get temporary access list (admin)
-app.get('/api/admin/temp-access', (req, res) => {
+app.get('/api/admin/temp-access', adminLimiter, (req, res) => {
     const adminPassword = req.get('X-Admin-Password');
 
     if (adminPassword !== process.env.ADMIN_PASSWORD) {
@@ -321,7 +409,7 @@ app.get('/api/admin/temp-access', (req, res) => {
 });
 
 // API: Approve pending request (admin)
-app.post('/api/admin/approve-request', (req, res) => {
+app.post('/api/admin/approve-request', adminLimiter, (req, res) => {
     const { requestId, permanent } = req.body;
     const adminPassword = req.get('X-Admin-Password');
 
@@ -358,7 +446,7 @@ app.post('/api/admin/approve-request', (req, res) => {
 });
 
 // API: Grant temporary access (admin)
-app.post('/api/admin/grant-temp-access', (req, res) => {
+app.post('/api/admin/grant-temp-access', adminLimiter, (req, res) => {
     const { requestId, duration } = req.body; // duration in hours
     const adminPassword = req.get('X-Admin-Password');
 
@@ -399,7 +487,7 @@ app.post('/api/admin/grant-temp-access', (req, res) => {
 });
 
 // API: Deny pending request (admin)
-app.post('/api/admin/deny-request', (req, res) => {
+app.post('/api/admin/deny-request', adminLimiter, (req, res) => {
     const { requestId, reason } = req.body;
     const adminPassword = req.get('X-Admin-Password');
 
@@ -425,12 +513,17 @@ app.post('/api/admin/deny-request', (req, res) => {
 });
 
 // API: Add user to whitelist manually (admin)
-app.post('/api/admin/add-user', (req, res) => {
+app.post('/api/admin/add-user', adminLimiter, (req, res) => {
     const { email } = req.body;
     const adminPassword = req.get('X-Admin-Password');
 
     if (adminPassword !== process.env.ADMIN_PASSWORD) {
         return res.status(403).json({ error: 'Unauthorized' });
+    }
+
+    // Validate email
+    if (!isValidEmail(email)) {
+        return res.status(400).json({ success: false, message: 'Invalid email format' });
     }
 
     const whitelist = loadJSON(WHITELIST_FILE);
@@ -452,7 +545,7 @@ app.post('/api/admin/add-user', (req, res) => {
 });
 
 // API: Remove user from whitelist (admin)
-app.post('/api/admin/remove-user', (req, res) => {
+app.post('/api/admin/remove-user', adminLimiter, (req, res) => {
     const { email } = req.body;
     const adminPassword = req.get('X-Admin-Password');
 

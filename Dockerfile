@@ -16,6 +16,15 @@ COPY views ./views
 # Create data directory
 RUN mkdir -p /app/data
 
+# Create non-root user for security
+RUN addgroup -g 1000 node && adduser -D -u 1000 -G node node
+
+# Set proper permissions
+RUN chown -R node:node /app
+
+# Switch to non-root user
+USER node
+
 # Expose port
 EXPOSE 3000
 

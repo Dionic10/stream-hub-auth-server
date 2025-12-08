@@ -16,22 +16,22 @@
         <div class="login-section" id="loginSection">
             <h2>Admin Login</h2>
             <input type="password" id="adminPassword" placeholder="Admin Password" />
-            <button onclick="login()">Login</button>
+            <button type="button" onclick="login()">Login</button>
             <div id="loginError" class="error"></div>
         </div>
 
         <div class="dashboard" id="dashboard" style="display: none;">
             <div class="tabs">
-                <button class="tab active" onclick="showTab('pending')">Pending Requests</button>
-                <button class="tab" onclick="showTab('whitelist')">Whitelist</button>
-                <button class="tab" onclick="showTab('tempAccess')">Temporary Access</button>
-                <button class="tab logout" onclick="logout()">Logout</button>
+                <button type="button" class="tab active" onclick="showTab('pending', this)">Pending Requests</button>
+                <button type="button" class="tab" onclick="showTab('whitelist', this)">Whitelist</button>
+                <button type="button" class="tab" onclick="showTab('tempAccess', this)">Temporary Access</button>
+                <button type="button" class="tab logout" onclick="logout()">Logout</button>
             </div>
 
             <!-- Pending Requests Tab -->
             <div id="pendingTab" class="tab-content active">
                 <h2>Pending Access Requests</h2>
-                <button onclick="refreshPending()" class="refresh-btn">🔄 Refresh</button>
+                <button type="button" onclick="refreshPending()" class="refresh-btn">🔄 Refresh</button>
                 <div id="pendingRequests" class="requests-list"></div>
             </div>
 
@@ -40,16 +40,16 @@
                 <h2>Whitelisted Users</h2>
                 <div class="add-user-form">
                     <input type="email" id="newUserEmail" placeholder="user@example.com" />
-                    <button onclick="addUser()">Add User</button>
+                    <button type="button" onclick="addUser()">Add User</button>
                 </div>
-                <button onclick="refreshWhitelist()" class="refresh-btn">🔄 Refresh</button>
+                <button type="button" onclick="refreshWhitelist()" class="refresh-btn">🔄 Refresh</button>
                 <div id="whitelistUsers" class="users-list"></div>
             </div>
 
             <!-- Temporary Access Tab -->
             <div id="tempAccessTab" class="tab-content">
                 <h2>Temporary Access Grants</h2>
-                <button onclick="refreshTempAccess()" class="refresh-btn">🔄 Refresh</button>
+                <button type="button" onclick="refreshTempAccess()" class="refresh-btn">🔄 Refresh</button>
                 <div id="tempAccessList" class="users-list"></div>
             </div>
         </div>
