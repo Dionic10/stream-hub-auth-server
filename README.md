@@ -1,8 +1,16 @@
-# Stremio Auth Server
+# Stream Hub Auth Server
 
-Authentication and authorization server for private Stremio Web instances. Implements whitelist-based access control using Stremio account authentication.
+> **Important Notice:** This is a companion authentication server for [Stream Hub Web](https://github.com/Dionic10/stream-hub-web), a personal fork of Stremio Web with self-hosting features.
+>
+> **For the official Stremio Web application, please visit the [original repository](https://github.com/Stremio/stremio-web).**
+>
+> This project was developed with AI assistance and is not affiliated with or endorsed by the Stremio team.
 
-> **⚠️ Compatibility Notice:** This auth server is designed to work exclusively with the [Dionic10/stremio-web](https://github.com/Dionic10/stremio-web) fork, which includes the AuthGuard component and auth integration. It is **not compatible** with the official Stremio Web repository.
+---
+
+Authentication and authorization server for private Stream Hub Web instances. Implements whitelist-based access control using Stremio account authentication.
+
+> **⚠️ Compatibility Notice:** This auth server is designed to work exclusively with [Stream Hub Web](https://github.com/Dionic10/stream-hub-web), which includes the AuthGuard component and auth integration. It is **not compatible** with the official Stremio Web repository.
 
 ## Features
 
@@ -18,11 +26,11 @@ Authentication and authorization server for private Stremio Web instances. Imple
 ## Architecture
 
 ```
-User → Stremio Web (your instance) → Logs in with Stremio
-                                   → Auth token sent to Auth Server
-                                   → Server validates with api.strem.io
-                                   → Server checks whitelist
-                                   → Grants or denies access
+User → Stream Hub Web (your instance) → Logs in with Stremio
+                                       → Auth token sent to Auth Server
+                                       → Server validates with api.strem.io
+                                       → Server checks whitelist
+                                       → Grants or denies access
 ```
 
 ## Quick Start
@@ -31,7 +39,7 @@ User → Stremio Web (your instance) → Logs in with Stremio
 
 ```bash
 # Clone or navigate to the auth server directory
-cd stremio-auth-server
+cd stream-hub-auth-server
 
 # Create .env file
 cp .env.example .env
@@ -162,12 +170,12 @@ User-friendly access denied page shown to unauthorized users.
 * **POST `/api/admin/add-user`** - Manually add user to whitelist
 * **POST `/api/admin/remove-user`** - Remove user from whitelist
 
-## Integration with Stremio Web
+## Integration with Stream Hub Web
 
-### Build Stremio Web with Auth
+### Build Stream Hub Web with Auth
 
 ```bash
-cd /path/to/stremio-web
+cd /path/to/stream-hub-web
 
 AUTH_SERVER_URL=http://localhost:3000 \
 STREAMING_SERVER_URL=https://your-streaming-server.com/ \
@@ -182,7 +190,7 @@ docker build \
   --build-arg AUTH_SERVER_URL=https://auth.yourdomain.com \
   --build-arg STREAMING_SERVER_URL=https://streaming.yourdomain.com/ \
   --build-arg DEFAULT_ADDONS="https://addon.com/manifest.json" \
-  -t stremio-web .
+  -t stream-hub-web .
 ```
 
 ## Deployment
@@ -195,7 +203,7 @@ docker build \
    docker-compose up -d
 
    # Or using Node.js with PM2
-   pm2 start server.js --name stremio-auth
+   pm2 start server.js --name stream-hub-auth
    ```
 
 2. **Set up reverse proxy (Nginx example):**
@@ -215,7 +223,7 @@ docker build \
    }
    ```
 
-3. **Update Stremio Web build:**
+3. **Update Stream Hub Web build:**
    ```bash
    AUTH_SERVER_URL=https://auth.yourdomain.com pnpm run build
    ```
@@ -233,14 +241,14 @@ docker build \
 
 ### For Whitelisted Users
 
-1. Visit your Stremio instance
+1. Visit your Stream Hub instance
 2. Log in with Stremio credentials
 3. Instant access (< 1 second validation)
 4. Custom streaming server & addons auto-configured
 
 ### For Non-Whitelisted Users
 
-1. Visit your Stremio instance
+1. Visit your Stream Hub instance
 2. Log in with Stremio credentials
 3. See "Access Not Authorized" page
 4. Request automatically submitted to admin
@@ -271,8 +279,8 @@ docker build \
 
 ### Whitelist validation fails
 
-* Ensure AUTH_SERVER_URL is correctly set in Stremio Web build
-* Check server is accessible from Stremio Web
+* Ensure AUTH_SERVER_URL is correctly set in Stream Hub Web build
+* Check server is accessible from Stream Hub Web
 * Verify CORS settings if servers are on different domains
 * Check server logs for errors
 
@@ -287,7 +295,7 @@ docker build \
 ### File Structure
 
 ```
-stremio-auth-server/
+stream-hub-auth-server/
 ├── server.js              # Main Express server
 ├── package.json           # Dependencies
 ├── Dockerfile            # Docker container config
@@ -330,10 +338,10 @@ MIT
 For issues or questions:
 * Check the troubleshooting section above
 * Review server logs for errors
-* Check Stremio Web console for client-side errors
+* Check Stream Hub Web console for client-side errors
 
 ## Related
 
-* [Stremio Web Fork](https://github.com/Dionic10/stremio-web) - Stremio Web with auth integration (required for this auth server)
+* [Stream Hub Web](https://github.com/Dionic10/stream-hub-web) - Modified Stremio Web with auth integration (required for this auth server)
 * [Official Stremio Web](https://github.com/Stremio/stremio-web) - Official Stremio Web repository (not compatible with this auth server)
 * [Stremio API](https://github.com/Stremio/stremio-api-client) - Stremio API documentation
