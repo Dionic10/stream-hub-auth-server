@@ -83,6 +83,12 @@ PORT=3000
 
 # Optional: Public URL of this auth server (for CORS)
 PUBLIC_URL=https://auth.yourdomain.com
+
+# Optional: Default addon URLs (returned by /api/config to authorized users)
+DEFAULT_ADDONS="https://addon1.com/manifest.json,https://addon2.com/manifest.json"
+
+# Optional: Default streaming server URL (returned by /api/config to authorized users)
+STREAMING_SERVER_URL="https://streaming-server.com/"
 ```
 
 ### Data Files
@@ -153,6 +159,53 @@ Response (unauthorized - new request):
   "requestId": "req_abc123",
   "email": "user@example.com"
 }
+```
+
+**POST `/api/config`**
+
+Returns addon URLs and streaming server configuration for authenticated users only. This prevents sensitive URLs from being exposed to unauthorized users.
+
+Request:
+```json
+{
+  "authKey": "stremio-auth-token",
+  "email": "user@example.com"
+}
+```
+
+Response (authorized - 200 OK):
+```json
+{
+  "defaultAddons": [
+    "https://addon1.com/manifest.json",
+    "https://addon2.com/manifest.json"
+  ],
+  "defaultStreamingServerUrl": "https://streaming-server.com/"
+}
+```
+
+Response (unauthorized - 403 Forbidden):
+```json
+{
+  "error": "Access denied"
+}
+```
+
+Response (invalid token - 401 Unauthorized):
+```json
+{
+  "error": "Authentication failed"
+}
+```
+
+**Configuration Environment Variables:**
+
+```env
+# Addon manifest URLs (comma-separated)
+DEFAULT_ADDONS="https://addon1.com/manifest.json,https://addon2.com/manifest.json"
+
+# Default streaming server URL
+STREAMING_SERVER_URL="https://streaming-server.com/"
 ```
 
 **GET `/access-denied?email=...&requestId=...`**
