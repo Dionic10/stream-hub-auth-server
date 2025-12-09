@@ -364,6 +364,59 @@ app.post('/api/validate-access', validateAccessLimiter, async (req, res) => {
     });
 });
 
+// API: Get configuration for authenticated clients
+// This endpoint returns addon URLs and streaming server configuration
+// to authenticated users only, preventing exposure to unauthorized users
+app.post('/api/config', validateAccessLimiter, async (req, res) => {
+    const { authKey, email: clientEmail } = req.body;
+
+    console.log(`\n[CONFIG] New request from: ${clientEmail || 'unknown'}`);
+
+    // Input validation
+    if (!authKey) {
+        console.log(`[CONFIG] FAIL: No auth token provided`);
+        return res.status(401).json({ error: 'Authentication required' });
+    }
+
+    if (!isValidAuthKey(authKey)) {
+        console.log(`[CONFIG] FAIL: Invalid auth key length: ${authKey.length}`);
+        return res.status(401).json({ error: 'Invalid authentication token' });
+    }
+
+    // Validate token with Stremio API
+    const tokenValidation = await validateStremioToken(authKey);
+
+    if (!tokenValidation.valid) {
+        console.log(`[CONFIG] FAIL: Stremio API validation failed`);
+        return res.status(401).json({ error: 'Authentication failed' });
+    }
+
+    const userEmail = tokenValidation.user.email;
+
+    // Check if user is authorized (whitelisted or has temporary access)
+    const authorized = isWhitelisted(userEmail) || hasTempAccess(userEmail);
+
+    if (!authorized) {
+        console.log(`[CONFIG] FAIL: User not authorized - ${userEmail}`);
+        return res.status(403).json({ error: 'Access denied' });
+    }
+
+    console.log(`[CONFIG] SUCCESS: Returning config for authorized user: ${userEmail}`);
+
+    // Load configuration from environment variables
+    const defaultAddons = process.env.DEFAULT_ADDONS
+        ? process.env.DEFAULT_ADDONS.split(',').map(url => url.trim()).filter(url => url.length > 0)
+        : [];
+
+    const defaultStreamingServerUrl = process.env.STREAMING_SERVER_URL || null;
+
+    // Return configuration
+    res.json({
+        defaultAddons: defaultAddons,
+        defaultStreamingServerUrl: defaultStreamingServerUrl
+    });
+});
+
 // API: Get all pending requests (admin)
 app.get('/api/admin/pending-requests', adminLimiter, (req, res) => {
     const adminPassword = req.get('X-Admin-Password');
