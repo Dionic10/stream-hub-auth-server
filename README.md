@@ -83,18 +83,29 @@ PORT=3000
 
 # Optional: Public URL of this auth server (for CORS)
 PUBLIC_URL=https://auth.yourdomain.com
-
-# Optional: Default addon URLs (returned by /api/config to authorized users)
-DEFAULT_ADDONS="https://addon1.com/manifest.json,https://addon2.com/manifest.json"
-
-# Optional: Default streaming server URL (returned by /api/config to authorized users)
-STREAMING_SERVER_URL="https://streaming-server.com/"
 ```
+
+### Configuration File
+
+Application configuration (addon URLs and streaming server) is stored in `data/config.json`:
+
+```json
+{
+  "defaultAddons": [
+    "https://addon1.com/manifest.json",
+    "https://addon2.com/manifest.json"
+  ],
+  "defaultStreamingServerUrl": "https://streaming-server.com/"
+}
+```
+
+**Updating Configuration:** Edit `data/config.json` at any time. Changes take effect immediately on the next `/api/config` API call - no server restart required.
 
 ### Data Files
 
 The server stores data in JSON files in the `data/` directory:
 
+* `config.json` - Application configuration (addon URLs, streaming server) - **editable at runtime**
 * `whitelist.json` - Approved users (permanent access)
 * `pending-requests.json` - Users awaiting approval
 * `temp-access.json` - Temporary access grants
@@ -230,21 +241,40 @@ User-friendly access denied page shown to unauthorized users.
 ```bash
 cd /path/to/stream-hub-web
 
-AUTH_SERVER_URL=http://localhost:3000 \
-STREAMING_SERVER_URL=https://your-streaming-server.com/ \
-DEFAULT_ADDONS="https://addon1.com/manifest.json" \
-pnpm run build
+AUTH_SERVER_URL=http://localhost:3000 pnpm run build
 ```
+
+The build only requires `AUTH_SERVER_URL`. Application configuration (addon URLs and streaming server) is managed via `data/config.json` on the auth server at runtime.
 
 ### Docker Build
 
 ```bash
 docker build \
   --build-arg AUTH_SERVER_URL=https://auth.yourdomain.com \
-  --build-arg STREAMING_SERVER_URL=https://streaming.yourdomain.com/ \
-  --build-arg DEFAULT_ADDONS="https://addon.com/manifest.json" \
   -t stream-hub-web .
 ```
+
+### Configure Addon URLs and Streaming Server
+
+Edit the auth server's configuration file:
+
+```bash
+nano /path/to/stremio-auth-server/data/config.json
+```
+
+Example:
+
+```json
+{
+  "defaultAddons": [
+    "https://addon1.com/manifest.json",
+    "https://addon2.com/manifest.json"
+  ],
+  "defaultStreamingServerUrl": "https://streaming-server.com/"
+}
+```
+
+Changes take effect immediately - no restart needed.
 
 ## Deployment
 

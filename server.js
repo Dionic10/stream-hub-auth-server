@@ -57,6 +57,7 @@ const DATA_DIR = path.join(__dirname, 'data');
 const WHITELIST_FILE = path.join(DATA_DIR, 'whitelist.json');
 const PENDING_FILE = path.join(DATA_DIR, 'pending-requests.json');
 const TEMP_ACCESS_FILE = path.join(DATA_DIR, 'temp-access.json');
+const CONFIG_FILE = path.join(DATA_DIR, 'config.json');
 
 // Ensure data directory exists
 if (!fs.existsSync(DATA_DIR)) {
@@ -73,6 +74,12 @@ function initializeDataFiles() {
     }
     if (!fs.existsSync(TEMP_ACCESS_FILE)) {
         fs.writeFileSync(TEMP_ACCESS_FILE, JSON.stringify([], null, 2));
+    }
+    if (!fs.existsSync(CONFIG_FILE)) {
+        fs.writeFileSync(CONFIG_FILE, JSON.stringify({
+            defaultAddons: [],
+            defaultStreamingServerUrl: null
+        }, null, 2));
     }
 }
 
@@ -403,17 +410,13 @@ app.post('/api/config', validateAccessLimiter, async (req, res) => {
 
     console.log(`[CONFIG] SUCCESS: Returning config for authorized user: ${userEmail}`);
 
-    // Load configuration from environment variables
-    const defaultAddons = process.env.DEFAULT_ADDONS
-        ? process.env.DEFAULT_ADDONS.split(',').map(url => url.trim()).filter(url => url.length > 0)
-        : [];
-
-    const defaultStreamingServerUrl = process.env.STREAMING_SERVER_URL || null;
+    // Load configuration from config.json file
+    const config = loadJSON(CONFIG_FILE);
 
     // Return configuration
     res.json({
-        defaultAddons: defaultAddons,
-        defaultStreamingServerUrl: defaultStreamingServerUrl
+        defaultAddons: config.defaultAddons || [],
+        defaultStreamingServerUrl: config.defaultStreamingServerUrl || null
     });
 });
 
