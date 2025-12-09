@@ -13,8 +13,12 @@ COPY server.js ./
 COPY public ./public
 COPY views ./views
 
-# Create data directory
-RUN mkdir -p /app/data
+# Create data directory with initial data files
+RUN mkdir -p /app/data && \
+    echo '[]' > /app/data/whitelist.json && \
+    echo '[]' > /app/data/pending-requests.json && \
+    echo '[]' > /app/data/temp-access.json && \
+    echo '{"defaultAddons": [], "defaultStreamingServerUrl": null}' > /app/data/config.json
 
 # Create non-root user for security (suppress errors for Alpine's existing node user)
 RUN addgroup -g 1000 node 2>/dev/null || true && \

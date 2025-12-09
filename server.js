@@ -11,6 +11,11 @@ require('dotenv').config();
 
 const app = express();
 
+// Trust proxy configuration - necessary when running behind reverse proxy (e.g., Nginx)
+// Set to specific IP of reverse proxy to avoid permissive trust warnings
+const trustProxyIP = process.env.TRUST_PROXY_IP || '127.0.0.1';
+app.set('trust proxy', trustProxyIP);
+
 // Security middleware: Helmet for security headers
 // Configure CSP to allow inline event handlers and scripts for admin panel
 app.use(helmet({
@@ -393,12 +398,26 @@ app.post('/api/config', validateAccessLimiter, async (req, res) => {
     // Validate token with Stremio API
     const tokenValidation = await validateStremioToken(authKey);
 
-    if (!tokenValidation.valid) {
-        console.log(`[CONFIG] FAIL: Stremio API validation failed`);
-        return res.status(401).json({ error: 'Authentication failed' });
+    let userEmail = clientEmail || null;
+
+    if (tokenValidation.valid) {
+        console.log(`[CONFIG] SUCCESS: Stremio API validated user`);
+        userEmail = tokenValidation.user.email;
+    } else {
+        // Stremio API failed - use fallback (same as /api/validate-access)
+        console.log(`[CONFIG] WARNING: Stremio API validation failed, using client email: ${clientEmail}`);
+
+        if (!clientEmail) {
+            console.log(`[CONFIG] FAIL: No email provided and API validation failed`);
+            return res.status(401).json({ error: 'Authentication failed' });
+        }
     }
 
-    const userEmail = tokenValidation.user.email;
+    // Validate email format
+    if (!isValidEmail(userEmail)) {
+        console.log(`[CONFIG] FAIL: Invalid email format: ${userEmail}`);
+        return res.status(401).json({ error: 'Invalid email' });
+    }
 
     // Check if user is authorized (whitelisted or has temporary access)
     const authorized = isWhitelisted(userEmail) || hasTempAccess(userEmail);
